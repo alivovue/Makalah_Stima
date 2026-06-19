@@ -3,8 +3,8 @@ from typing import Any
 
 from app_types.enums import (
     ACTIONS,
-    ACTION_LOCATIONS,
     START_DECISION,
+    get_locations_for_action,
 )
 from app_types.schemas import (
     ALLY_ALIVE_COLUMNS,
@@ -23,17 +23,12 @@ DATA_PATH = Path("data/game_data.csv")
 
 
 def ask_menu(prompt: str, options: list[str], default_index: int | None = None) -> str:
-    """
-    Numbered menu input.
-    Example:
-    1. BTR
-    2. ONIC
-    """
     if not options:
         raise ValueError(f"No options available for: {prompt}")
 
     while True:
         print(f"\n{prompt}")
+
         for index, option in enumerate(options, start=1):
             marker = " [default]" if default_index == index else ""
             print(f"{index}. {option}{marker}")
@@ -103,33 +98,11 @@ def ask_game_time_seconds() -> int:
             print("Invalid format. Use MM:SS, for example 09:35.")
 
 
-def ask_previous_decision() -> tuple[str, str]:
-    use_previous = ask_menu(
-        "Do you know the previous macro decision?",
-        ["NO", "YES"],
-        default_index=1,
-    )
-
-    if use_previous == "NO":
-        return START_DECISION
-
-    action = ask_menu("Previous action", ACTIONS)
-    location = ask_menu("Previous action location", ACTION_LOCATIONS)
-
-    return (action, location)
-
-
 def get_available_teams(rows: list[dict[str, Any]]) -> list[str]:
-    """
-    Only teams that appear as `team` in the dataset are valid prediction targets.
-    """
     return sorted({row["team"] for row in rows})
 
 
 def get_available_opponents(rows: list[dict[str, Any]], selected_team: str) -> list[str]:
-    """
-    Only opponents that appear against the selected team are valid.
-    """
     return sorted({row["opponent"] for row in rows if row["team"] == selected_team})
 
 
@@ -144,10 +117,6 @@ def ask_team_and_opponent(rows: list[dict[str, Any]]) -> tuple[str, str]:
 
 
 def ask_laning_roles() -> tuple[str, str, str]:
-    """
-    Mid is always MID.
-    Only upper/lower role swap is asked.
-    """
     choice = ask_menu(
         "Choose lane role setup",
         [
@@ -265,6 +234,26 @@ def ask_objective_info(row: dict[str, Any], team: str, opponent: str) -> None:
         ask_turtle_info(row)
     else:
         ask_lord_info(row, team, opponent)
+
+
+def ask_previous_decision() -> tuple[str, str]:
+    use_previous = ask_menu(
+        "Do you know the previous macro decision?",
+        ["NO", "YES"],
+        default_index=1,
+    )
+
+    if use_previous == "NO":
+        return START_DECISION
+
+    action = ask_menu("Previous action", ACTIONS)
+    possible_locations = get_locations_for_action(action)
+
+    if len(possible_locations) == 1:
+        return action, possible_locations[0]
+
+    location = ask_menu("Where did that previous action happen?", possible_locations)
+    return action, location
 
 
 def build_user_row(historical_rows: list[dict[str, Any]]) -> dict[str, Any]:
